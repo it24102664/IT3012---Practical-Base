@@ -1,6 +1,12 @@
 # visual_grid_game.py
 import random
 import tkinter as tk
+from agent import SimpleReflexAgent, ModelBasedAgent, SearchAgent
+
+
+
+
+
 
 
 class VisualGridHuntGame:
@@ -10,6 +16,7 @@ class VisualGridHuntGame:
         self.width = width
         self.height = height
         self.agent_pos = [0, 0]  # Starting position (x, y)
+        self.facing = 'Up'  # Current facing direction
 
         if custom_walls is not None:
             self.walls = set(custom_walls)
@@ -40,19 +47,37 @@ class VisualGridHuntGame:
         self.collision = False
 
     def get_percept(self) -> dict:
+        ahead_pos = list(self.agent_pos)
+        if self.facing == 'Up':
+            ahead_pos[1] += 1
+        elif self.facing == 'Down':
+            ahead_pos[1] -= 1
+        elif self.facing == 'Left':
+            ahead_pos[0] -= 1
+        elif self.facing == 'Right':
+            ahead_pos[0] += 1
+
+        wall_ahead = (
+            tuple(ahead_pos) in self.walls or
+            ahead_pos[0] < 0 or ahead_pos[0] >= self.width or
+            ahead_pos[1] < 0 or ahead_pos[1] >= self.height
+        )
+        
         return {
-            'agent_pos': list(self.agent_pos),
-            'opponent_positions': [list(op) for op in self.opponents],
-            'smells_food': tuple(self.agent_pos) in self.food_positions,
-            'hit_wall': tuple(self.agent_pos) in self.walls,
-            'collision': self.collision,
-            'score': self.score,
-            'remaining_food': len(self.food_positions)
+            'wall_ahead': wall_ahead,
+            'food_here': tuple(self.agent_pos) in self.food_positions,
+            'agent_pos': tuple(self.agent_pos),
+            'grid_size': (self.width, self.height),
+            'walls': list(self.walls),
+            'all_food': list(self.food_positions)
         }
 
     def execute_action(self, action: str):
         self.steps += 1
         new_pos = list(self.agent_pos)
+
+        if action in ['Up', 'Down', 'Left', 'Right']:
+            self.facing = action
 
         if action == 'Up':
             new_pos[1] = min(self.height - 1, new_pos[1] + 1)
@@ -162,10 +187,11 @@ class GridGameGUI:
 
     def run_loop(self):
         self.btn.config(state="disabled")
+        agent = SearchAgent(active_algo='AStar')
 
         def step():
             if not self.env.is_done():
-                action = random.choice(['Up', 'Down', 'Left', 'Right'])
+                action = agent.sense_and_act(self.env.get_percept())
                 self.env.execute_action(action)
 
                 self.draw_grid()
